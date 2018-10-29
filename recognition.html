@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta http-equiv="Content-Style-Type" content="text/css">
+  <title>Recognition 2</title>
+</head>
+<body>
+  <canvas id="canvas" width="1024" height="768" style="float:left;"></canvas>
+  <canvas id="logo"></canvas>
+
+<div id="status" style="float: right; word-wrap: break-word;">
+  <input id="file" type="file"/>
+  <input type='button' id='btnLoad' value='Load' onclick='loadImage();'/>
+
+</div>
+</body>
+<script>
+const file_input = document.getElementById('file');
+
+const canvas = document.getElementById('canvas');
+const logo_canvas = document.getElementById('logo');
+const ctx = canvas.getContext('2d');
+const out = document.querySelector('textarea');
+
+let matrix = []
+
+let logo_ctx, imageData, buffer, numPixels, pixels
+
+// create circles to draw
+const circles = [
+  {
+    x: 80,
+    y: 80,
+    radius: 50,
+    color: 'rgb(255,0,0)',
+    id: 'red',
+    clicked: false
+  },
+  {
+    x: 300,
+    y: 300,
+    radius: 50,
+    color: 'rgb(0,255,0)',
+    id: 'green',
+    clicked: false
+  }
+];
+//
+// draw circles
+const redraw = () => {
+circles.forEach(circle => {
+  ctx.beginPath();
+  ctx.arc(circle.x, circle.y, circle.radius, 0, 2 * Math.PI, false);
+  ctx.fillStyle = circle.color;
+  ctx.fill();
+  if(circle.clicked) {
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#003300';
+    ctx.stroke();
+  }
+});
+}
+
+redraw();
+
+function hasSameColor(color, circle) {
+  return circle.color === color;
+}
+
+canvas.addEventListener('click', (e) => {
+  const mousePos = {
+    x: e.clientX - canvas.offsetTop,
+    y: e.clientY - canvas.offsetLeft
+  };
+  // get pixel under cursor
+  const pixel = ctx.getImageData(mousePos.x, mousePos.y, 1, 1).data;
+
+  // create rgb color for that pixel
+  const color = `rgb(${pixel[0]},${pixel[1]},${pixel[2]})`;
+
+  // find a circle with the same colour
+  circles.forEach(circle => {
+    if (hasSameColor(color, circle)) {
+      circle.clicked = true;
+      alert('click on circle: ' + circle.id);
+    } else {
+      circle.clicked = false;
+    }
+  });
+  redraw();
+ });
+
+ function loadImage() {
+         let input, file, fr, img;
+
+         if (typeof window.FileReader !== 'function') {
+             write("The file API isn't supported on this browser yet.");
+             return;
+         }
+
+         input = document.getElementById('file');
+         if (!input) {
+             write("Um, couldn't find the imgfile element.");
+         }
+         else if (!input.files) {
+             write("This browser doesn't seem to support the `files` property of file inputs.");
+         }
+         else if (!input.files[0]) {
+             write("Please select a file before clicking 'Load'");
+         }
+         else {
+             file = input.files[0];
+             fr = new FileReader();
+             fr.onload = createImage;
+             fr.readAsDataURL(file);
+         }
+
+         function createImage() {
+             img = new Image();
+             img.onload = imageLoaded;
+             img.src = fr.result;
+         }
+
+         function imageLoaded() {
+             logo_canvas.width = img.width;
+             logo_canvas.height = img.height;
+             logo_ctx = logo_canvas.getContext("2d");
+             logo_ctx.drawImage(img,0,0,img.width, img.height);
+             imageData = logo_ctx.getImageData(0, 0, logo_canvas.width, logo_canvas.height);
+             buffer = logo_ctx.createImageData(imageData);
+             numPixels = imageData.width * imageData.height;
+             pixels = imageData.data;
+
+             const bitmap = rgbToMono(pixels);
+             const perChunk = img.width;
+             matrix = divideByChunks(bitmap, perChunk);
+             // document.getElementById('status').innerHTML = JSON.stringify(matrix);
+            // console.log(matrix);
+             // alert(canvas.toDataURL("image/png"));
+         }
+
+         function write(msg) {
+             const p = document.createElement('p');
+             p.innerHTML = msg;
+             document.body.appendChild(p);
+         }
+     }
+
+     logo_canvas.addEventListener('click', function(e) {
+       const pos = findPos(this);
+       const x = e.pageX - pos.x;
+       const y = e.pageY - pos.y;
+       // get pixel under cursor
+       const pixelRgb = logo_ctx.getImageData(x, y, 1, 1).data;
+       const pixelInfo = wrapPixelInfo(pixelRgb, x, y);
+       // create rgb color for that pixel
+
+       console.log(x + " " + y);
+       // find a circle with the same colour
+
+       const figure = selectFigure(pixelInfo, matrix)
+       console.log(figure);
+       const binaryData = monoToRgb(concatChunksIntoArray(figure));
+       const imageData = logo_ctx.getImageData(0, 0, logo_canvas.width, logo_canvas.height);
+       imageData.data.set(binaryData);
+       logo_ctx.putImageData(imageData, 0, 0);
+      });
+
+      function divideByChunks (arr, len) {
+
+       let chunks = [],
+           i = 0,
+           n = arr.length;
+
+       while (i < n) {
+         chunks.push(arr.slice(i, i += len));
+       }
+
+       return chunks;
+     }
+
+     function concatChunksIntoArray(arr2d) {
+       let result = [],
+           queue=[],
+           p;
+        queue.push(arr2d);
+        while (queue.length !== 0) {
+            p = queue.shift();
+            if (Array.isArray(p)) {
+                queue = p.concat(queue);
+            } else {
+                result.push(p);
+            }
+        }
+        return result;
+     }
+
+      function rgbToMono(pixels) {
+        const bitmap = []
+        for(let i = 0; i < pixels.length; i += 4) {
+          if (pixels[i] + pixels[i+1] + pixels[i+2] === 0) {
+            bitmap.push(0);
+          } else {
+            bitmap.push(1);
+          }
+        }
+
+        return bitmap;
+      }
+
+      function monoToRgb(pixels) {
+        const rgba = []
+        for(let i = 0; i < pixels.length; i++) {
+          if (pixels[i] === 1) {
+            rgba.push(255)
+            rgba.push(255)
+            rgba.push(255)
+            rgba.push(255)
+          } else {
+            rgba.push(0)
+            rgba.push(0)
+            rgba.push(0)
+            rgba.push(255)
+          }
+        }
+
+        return rgba;
+      }
+
+      function wrapPixelInfo(pixel, x, y) {
+        const pixelObject = {x, y};
+        if (pixel[0] + pixel[1] + pixel[2] === 0) {
+          pixelObject.value = 0;
+        } else {
+          pixelObject.value = 1;
+        }
+        return pixelObject;
+      }
+
+      function lookup(direction, matrix, x, y) {
+        let isZeroEncountered = false;
+        let firstZeroIndex;
+        // right to left
+        if (direction === "left") {
+          for(x; x > 0 && !isZeroEncountered; x--) {
+            if (matrix[y][x] === 0) {
+              isZeroEncountered = true;
+              firstZeroIndex = x;
+            }
+          }
+          if (firstZeroIndex) {
+            for (let y = matrix.length - 1; y > 0; y--) {
+              for (let i = 0; i < firstZeroIndex; i++) {
+                matrix[y][i] = 0;
+              }
+            }
+          }
+          // left to right
+        } else if (direction === "right") {
+          for(x; x < matrix[y].length && !isZeroEncountered; x++) {
+            if (matrix[y][x] === 0) {
+              isZeroEncountered = true;
+              firstZeroIndex = x;
+            }
+          }
+          if (firstZeroIndex) {
+            for (let y = matrix.length - 1; y > 0; y--) {
+            for (let i = matrix[y].length - 1; i > firstZeroIndex; i--) {
+              matrix[y][i] = 0;
+            }
+          }
+          }
+          // bottom to top
+        } else if (direction === "top") {
+          for(y; y > 0 && !isZeroEncountered; y--) {
+            if (matrix[y][x] === 0) {
+              isZeroEncountered = true;
+              firstZeroIndex = y;
+            }
+          }
+          if (firstZeroIndex) {
+            for (let i = 0; i < firstZeroIndex; i++) {
+              for (let x = 0; x < matrix[y].length; x++) {
+              matrix[i][x] = 0;
+            }
+          }
+          }
+          // top to bottom
+        } else if (direction === "bottom") {
+          for(y; y < matrix.length && !isZeroEncountered; y++) {
+            if (matrix[y][x] === 0) {
+              isZeroEncountered = true;
+              firstZeroIndex = y;
+            }
+          }
+          if (firstZeroIndex) {
+            for (let i = matrix.length - 1; i > firstZeroIndex; i--) {
+              for (let x = 0; x < matrix[y].length; x++) {
+              matrix[i][x] = 0;
+            }
+            }
+          }
+        } else {
+          throw new Error("Invalid direction");
+        }
+
+        return matrix;
+      }
+
+      function selectFigure(pixel, matrix) {
+        if (pixel.value === 0) {
+          return;
+        }
+        const x = pixel.x;
+        const y = pixel.y;
+        matrix = lookup("left", matrix, x, y)
+        matrix = lookup("right", matrix, x, y)
+        matrix = lookup("top", matrix, x, y)
+        matrix = lookup("bottom", matrix, x, y)
+
+        return matrix;
+      }
+
+      function findPos(obj) {
+        let curleft = 0, curtop = 0;
+        if (obj.offsetParent) {
+            do {
+                curleft += obj.offsetLeft;
+                curtop += obj.offsetTop;
+            } while (obj = obj.offsetParent);
+            return { x: curleft, y: curtop };
+        }
+        return undefined;
+    }
+
+// const printMousePos = (event) => {
+//   document.getElementById('status').innerHTML =
+//     "clientX: " + event.clientX +
+//     " - clientY: " + event.clientY;
+// }
+// document.addEventListener("click", printMousePos);
+</script>
+<script src="marvin.js"></script>
+</html>
