@@ -6,10 +6,8 @@
   <title>Recognition 2</title>
 </head>
 <body>
-  <canvas id="canvas" width="1024" height="768" style="float:left;"></canvas>
   <canvas id="logo"></canvas>
 
-<div id="status" style="float: right; word-wrap: break-word;">
   <input id="file" type="file"/>
   <input type='button' id='btnLoad' value='Load' onclick='loadImage();'/>
 
@@ -17,79 +15,12 @@
 </body>
 <script>
 const file_input = document.getElementById('file');
-
-const canvas = document.getElementById('canvas');
 const logo_canvas = document.getElementById('logo');
-const ctx = canvas.getContext('2d');
 const out = document.querySelector('textarea');
 
 let matrix = []
 
 let logo_ctx, imageData, buffer, numPixels, pixels
-
-// create circles to draw
-const circles = [
-  {
-    x: 80,
-    y: 80,
-    radius: 50,
-    color: 'rgb(255,0,0)',
-    id: 'red',
-    clicked: false
-  },
-  {
-    x: 300,
-    y: 300,
-    radius: 50,
-    color: 'rgb(0,255,0)',
-    id: 'green',
-    clicked: false
-  }
-];
-//
-// draw circles
-const redraw = () => {
-circles.forEach(circle => {
-  ctx.beginPath();
-  ctx.arc(circle.x, circle.y, circle.radius, 0, 2 * Math.PI, false);
-  ctx.fillStyle = circle.color;
-  ctx.fill();
-  if(circle.clicked) {
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = '#003300';
-    ctx.stroke();
-  }
-});
-}
-
-redraw();
-
-function hasSameColor(color, circle) {
-  return circle.color === color;
-}
-
-canvas.addEventListener('click', (e) => {
-  const mousePos = {
-    x: e.clientX - canvas.offsetTop,
-    y: e.clientY - canvas.offsetLeft
-  };
-  // get pixel under cursor
-  const pixel = ctx.getImageData(mousePos.x, mousePos.y, 1, 1).data;
-
-  // create rgb color for that pixel
-  const color = `rgb(${pixel[0]},${pixel[1]},${pixel[2]})`;
-
-  // find a circle with the same colour
-  circles.forEach(circle => {
-    if (hasSameColor(color, circle)) {
-      circle.clicked = true;
-      alert('click on circle: ' + circle.id);
-    } else {
-      circle.clicked = false;
-    }
-  });
-  redraw();
- });
 
  function loadImage() {
          let input, file, fr, img;
@@ -135,8 +66,6 @@ canvas.addEventListener('click', (e) => {
              const bitmap = rgbToMono(pixels);
              const perChunk = img.width;
              matrix = divideByChunks(bitmap, perChunk);
-             // document.getElementById('status').innerHTML = JSON.stringify(matrix);
-            // console.log(matrix);
              // alert(canvas.toDataURL("image/png"));
          }
 
@@ -148,17 +77,16 @@ canvas.addEventListener('click', (e) => {
      }
 
      logo_canvas.addEventListener('click', function(e) {
+       // get pixel under cursor
        const pos = findPos(this);
        const x = e.pageX - pos.x;
        const y = e.pageY - pos.y;
-       // get pixel under cursor
+
+       // create rgb color for that pixel
        const pixelRgb = logo_ctx.getImageData(x, y, 1, 1).data;
        const pixelInfo = wrapPixelInfo(pixelRgb, x, y);
-       // create rgb color for that pixel
 
-       console.log(x + " " + y);
        // find a circle with the same colour
-
        const figure = selectFigure(pixelInfo, matrix)
        console.log(figure);
        const binaryData = monoToRgb(concatChunksIntoArray(figure));
@@ -168,11 +96,9 @@ canvas.addEventListener('click', (e) => {
       });
 
       function divideByChunks (arr, len) {
-
        let chunks = [],
            i = 0,
            n = arr.length;
-
        while (i < n) {
          chunks.push(arr.slice(i, i += len));
        }
@@ -333,13 +259,5 @@ canvas.addEventListener('click', (e) => {
         }
         return undefined;
     }
-
-// const printMousePos = (event) => {
-//   document.getElementById('status').innerHTML =
-//     "clientX: " + event.clientX +
-//     " - clientY: " + event.clientY;
-// }
-// document.addEventListener("click", printMousePos);
 </script>
-<script src="marvin.js"></script>
 </html>
